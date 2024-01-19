@@ -1,47 +1,47 @@
+import os 
+from mininet.node import OVSSwitch, Controller
 from mininet.cli import CLI
-from mininet.log import setLogLevel
 from mininet.net import Mininet
-from mininet.node import RemoteController
 
-def create_openflow_topology(topo_type, num_hosts, controller_ip='127.0.0.1', controller_port=6633):
-    net = Mininet(controller=RemoteController)
-    controller = net.addController('c0', port=controller_port)
+def create_openflow_topology():
+    # Create an instance of Mininet with the default controller
+    net = Mininet(controller=Controller, switch=OVSSwitch)
 
-    # Create OpenFlow topology based on the specified type
-    if topo_type == 'single':
-        switch = net.addSwitch('s1')
-        h1 = net.addHost('h1')
-        h2 = net.addHost('h2')
-        net.addLink(h1, switch)
-        net.addLink(h2, switch)
+    # Add a switch
+    s1 = net.addSwitch('s1')
 
-    elif topo_type == 'linear':
-        prev_switch = None
-        for i in range(1, num_hosts + 1):
-            switch = net.addSwitch('s{}'.format(i))
-            host = net.addHost('h{}'.format(i))
-            net.addLink(host, switch)
-            if prev_switch:
-                net.addLink(prev_switch, switch)
-            prev_switch = switch
-        h1 = net.get('h1')
-        h2 = net.get('h2')
+    # Add hosts and link them to the switch
+    h1 = net.addHost('h1')
+    h2 = net.addHost('h2')
+    net.addLink(h1, s1)
+    net.addLink(h2, s1)
 
-    elif topo_type == 'tree':
-        switch = net.addSwitch('s1')
-        hosts = [net.addHost('h{}'.format(i)) for i in range(1, num_hosts + 1)]
-        for host in hosts:
-            net.addLink(host, switch)
-        h1 = net.get('h1')
-        h2 = net.get('h2')
-
-    net.build()
-    controller.start()
+    # Start the network
     net.start()
-    h1.cmd('ping -c 1 h2')
+
+    # Call the collect_rtt function
+    h1, h2 = net.get('h1', 'h2')
+    print(f"Collecting RTT between {h1.IP()} and {h2.IP()}...")
+    collect_rtt(h1.IP(), h2.IP(), 'rtt_data.txt')
+
     CLI(net)
+
+    # Stop the network
     net.stop()
 
+def collect_rtt(host1, host2, filename):
+    print(f"Pinging {host2} from {host1}...")
+    result = os.popen(f'ping -c 4 {host2}').read()
+    if result:  # Check if the ping command returned any output
+        print(result)
+        try:
+            with open(filename, 'w') as f:
+                f.write(result)
+            print(f"RTT data saved to {filename}")
+        except IOError as e:
+            print(f"Error writing to file: {e}")
+    else:
+        print("Error: The ping command did not return any output.")
+
 if __name__ == '__main__':
-    setLogLevel('info')
-    create_openflow_topology('single', 2)
+    create_openflow_topology()
